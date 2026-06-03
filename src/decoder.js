@@ -1,7 +1,7 @@
-import { Transform } from 'stream';
-import tools from './tools';
-import schema from './schema';
-import { debugLog } from './debug-log';
+const { Transform } = require('stream');
+const tools = require('./tools');
+const schema = require('./schema');
+const { debugLog } = require('./debug-log');
 
 const debug = debugLog('ebml:decoder');
 
@@ -9,7 +9,7 @@ const STATE_TAG = 1;
 const STATE_SIZE = 2;
 const STATE_CONTENT = 3;
 
-export default class EbmlDecoder extends Transform {
+class EbmlDecoder extends Transform {
   /**
    * @property
    * @private
@@ -299,3 +299,5 @@ export default class EbmlDecoder extends Transform {
     return true;
   }
 }
+
+module.exports = EbmlDecoder

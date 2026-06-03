@@ -1,6 +1,6 @@
-import schema from "./schema";
+const schema = require("./schema");
 
-export default class Tools {
+class Tools {
   /**
    * read variable length integer per
    * https://www.matroska.org/technical/specs/index.html#EBML_ex
@@ -274,4 +274,18 @@ export default class Tools {
     }
     return schema
   }
+
+  /**
+   * @param {number} value
+   * @param {number} size
+   */
+  static toUint8(value, size) {
+    var buf = new Uint8Array(size)
+    for (let i = 0, k = size - 1; i < size; ++i, --k) {
+      buf[i] = (value >> (8 * k)) & 0xFF
+    }
+    return buf
+  }
 }
+
+module.exports = Tools

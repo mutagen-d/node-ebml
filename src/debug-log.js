@@ -1,5 +1,5 @@
-export const debugLog = (name) => {
-  let enabled = true
+const debugLog = (name) => {
+  let enabled = false
   const log = (...args) => {
     if (enabled) {
       console.log(`[${name}]`, ...args)
@@ -8,3 +8,5 @@ export const debugLog = (name) => {
   log.enabled = enabled
   return log
 }
+
+module.exports = { debugLog }

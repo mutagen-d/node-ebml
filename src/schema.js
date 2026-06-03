@@ -3020,4 +3020,4 @@ const schema = new Map([
   ],
 ]);
 
-export default schema;
+module.exports = schema;

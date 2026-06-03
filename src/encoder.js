@@ -1,7 +1,7 @@
-import { Transform } from 'stream';
-import schema from './schema';
-import tools from './tools';
-import { debugLog } from './debug-log';
+const { Transform } = require('stream');
+const schema = require('./schema');
+const tools = require('./tools');
+const { debugLog } = require('./debug-log');
 
 const debug = debugLog('ebml:encoder');
 
@@ -26,7 +26,7 @@ function encodeTag(tagId, tagData, end) {
  * @class EbmlEncoder
  * @extends Transform
  */
-export default class EbmlEncoder extends Transform {
+class EbmlEncoder extends Transform {
   /**
    * @type {Buffer}
    * @property
@@ -233,3 +233,5 @@ export default class EbmlEncoder extends Transform {
     }
   }
 }
+
+module.exports = EbmlEncoder
