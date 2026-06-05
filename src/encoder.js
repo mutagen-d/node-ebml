@@ -5,16 +5,23 @@ const { debugLog } = require('./debug-log');
 
 const debug = debugLog('ebml:encoder');
 
+/** @typedef {import('./types/tag.types').Tag} Tag */
+
+/**
+ * @param {number} tagId
+ * @param {Buffer} tagData
+ * @param {number} [end]
+ */
 function encodeTag(tagId, tagData, end) {
   const data = [Buffer.from(tagId.toString(16), 'hex')];
   if (end === -1) {
-    data.push(Buffer.from('01ffffffffffffff', 'hex'));
+    data.push(Buffer.from([0xFF]))
   } else {
-    data.push(tools.writeVint(tagData.length));
+    data.push(tools.writeVint(tagData.length))
   }
 
   // cast ArrayBuffer to Buffer
-  if (!(tagData instanceof Buffer)) {
+  if (!Buffer.isBuffer(tagData)) {
     tagData = Buffer.from(tagData); // eslint-disable-line no-param-reassign
   }
   data.push(tagData);
@@ -181,6 +188,7 @@ class EbmlEncoder extends Transform {
     this.flush();
   }
 
+  /** @private */
   writeTag(tagName, tagData) {
     const tagId = EbmlEncoder.getSchemaInfo(tagName);
     if (!tagId) {
@@ -197,7 +205,7 @@ class EbmlEncoder extends Transform {
   }
 
   /**
-   *
+   * @private
    * @param {String} tagName The name of the tag to start
    * @param {{end: Number}} info an information object with a `end` parameter
    */
@@ -221,6 +229,7 @@ class EbmlEncoder extends Transform {
     this.stack.push(tag);
   }
 
+  /** @private */
   endTag() {
     const tag = this.stack.pop() || {
       children: [],

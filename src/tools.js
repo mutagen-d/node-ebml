@@ -10,7 +10,17 @@ class Tools {
    * @returns {{length: Number, value: number}}  value / length object
    */
   static readVint(buffer, start = 0) {
-    const length = 8 - Math.floor(Math.log2(buffer[start]));
+    // Calculate length based on leading zeros in the first byte
+    const firstByte = buffer[start];
+
+    // Find the first 1 bit to determine length (VINT_WIDTH)
+    let length = 1;
+    let mask = 0x80; // 10000000 binary
+    while ((firstByte & mask) === 0 && length <= 8) {
+      length++;
+      mask >>= 1;
+    }
+
     if (length > 8) {
       const number = Tools.readHexString(buffer, start, start + length);
       throw new Error(`Unrepresentable length: ${length} ${number}`);
@@ -20,15 +30,26 @@ class Tools {
       return null;
     }
 
-    let value = buffer[start] & ((1 << (8 - length)) - 1);
-    for (let i = 1; i < length; i += 1) {
-      if (i === 7) {
-        if (value >= 2 ** 45 && buffer[start + 7] > 0) {
-          return { length, value: -1 };
-        }
+    // Check if all data bits are 1 (indicating unknown/infinite size)
+    const dataMask = (1 << (8 - length)) - 1;
+    let value = firstByte & dataMask;
+
+    // Check for "all bits set" pattern (unknown size)
+    let allBitsSet = (firstByte & dataMask) === dataMask;
+    for (let i = 1; i < length && allBitsSet; i++) {
+      if (buffer[start + i] !== 0xFF) {
+        allBitsSet = false;
       }
-      value *= 2 ** 8;
-      value += buffer[start + i];
+    }
+
+    // If all data bits are 1, it represents unknown/infinite size
+    if (allBitsSet) {
+      return { length, value: -1 };
+    }
+
+    // Parse the remaining bytes
+    for (let i = 1; i < length; i++) {
+      value = (value << 8) | buffer[start + i];
     }
 
     return { length, value };
@@ -40,13 +61,15 @@ class Tools {
    * @param {Number} value to store into buffer
    * @returns {Buffer} containing the value
    */
-  static writeVint(value) {
+  static writeVint(value, minLength = 1) {
     if (value < 0 || value > 2 ** 53) {
       throw new Error(`Unrepresentable value: ${value}`);
     }
 
+    minLength = typeof minLength === 'number' && !isNaN(minLength) ? Math.max(1, minLength) : 1;
+    minLength = Math.min(8, minLength);
     let length = 1;
-    for (length = 1; length <= 8; length += 1) {
+    for (length = minLength; length <= 8; length += 1) {
       if (value < 2 ** (7 * length) - 1) {
         break;
       }
@@ -286,6 +309,47 @@ class Tools {
     }
     return buf
   }
+
+  /** @param {number} value */
+  static measureUnsignedInt(value) {
+    // Force to 32-bit unsigned integer
+    if (value < (1 << 8)) {
+      return 1;
+    } else if (value < (1 << 16)) {
+      return 2;
+    } else if (value < (1 << 24)) {
+      return 3;
+    } else if (value < 2 ** 32) {
+      return 4;
+    } else if (value < 2 ** 40) {
+      return 5;
+    } else {
+      return 6;
+    }
+  };
+
+  /** @param {number} value */
+  static measureEBMLVarInt(value) {
+    if (value < (1 << 7) - 1) {
+      /** Top bit is set, leaving 7 bits to hold the integer, but we can't store
+       * 127 because "all bits set to one" is a reserved value. Same thing for the
+       * other cases below:
+       */
+      return 1;
+    } else if (value < (1 << 14) - 1) {
+      return 2;
+    } else if (value < (1 << 21) - 1) {
+      return 3;
+    } else if (value < (1 << 28) - 1) {
+      return 4;
+    } else if (value < 2 ** 35 - 1) {
+      return 5;
+    } else if (value < 2 ** 42 - 1) {
+      return 6;
+    } else {
+      throw new Error('EBML VINT size not supported ' + value);
+    }
+  };
 }
 
 module.exports = Tools

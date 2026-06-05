@@ -235,9 +235,7 @@ class EbmlDecoder extends Transform {
   }
 
   readContent() {
-    const { tagStr, type, dataSize, ...rest } = this.tagStack[
-      this.tagStack.length - 1
-    ];
+    const { tagStr, type, dataSize, ...rest } = this.tagStack[this.tagStack.length - 1];
 
     /* istanbul ignore if */
     if (debug.enabled) {

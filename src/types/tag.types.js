@@ -1,22 +1,25 @@
 // @flow
 
-import type { EBMLSchema } from './schema.types';
 
-export type TagMeta = {
-  data: Buffer,
-  dataSize: number,
-  discardable: boolean,
-  end: number,
-  id: number,
-  keyframe: boolean,
-  payload: Buffer,
-  start: number,
-  tagStr: string,
-  track: number,
-  value: number | string,
-};
+/**
+ * @typedef {{
+ *  data: Buffer,
+ *  dataSize: number,
+ *  discardable: boolean,
+ *  end: number,
+ *  id: number,
+ *  keyframe: boolean,
+ *  payload: Buffer,
+ *  start: number,
+ *  tagStr: string,
+ *  track: number,
+ *  value: number | string,
+ * }} TagMeta
+ */
 
-export type Tag = EBMLSchema & TagMeta;
+/** @typedef {import('./schema.types').EBMLSchema & TagMeta} Tag */
 
-export type TagStackItem = Tag & { children: TagStackItem[] };
-export type TagStack = TagStackItem[];
+/** @typedef {Tag & { children: TagStackItem[] }} TagStackItem */
+/** @typedef {TagStackItem[]} TagStack */
+
+module.exports = {}
