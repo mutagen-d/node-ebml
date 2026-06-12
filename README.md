@@ -20,9 +20,9 @@ Version `2.2.4` is the last version to have guaranteed legacy semantics.
 Install via NPM or Yarn:
 
 ```bash
-npm install ebml --save
+npm install ebml.js --save
 # or
-yarn add ebml
+yarn add ebml.js
 ```
 
 # Usage
@@ -79,7 +79,7 @@ invokes its `data` event for each Element.
 
 ```js
 const fs = require('fs');
-const { Decoder } = require('./lib/ebml.js');
+const { Decoder } = require('ebml.js');
 
 const decoder = new Decoder();
 
@@ -96,7 +96,7 @@ fs.readFile('media/test.webm', (err, data) => {
 This example does the same thing, but by piping the file stream into the decoder (a Transform stream).
 
 ```js
-const { Decoder } = require('./lib/ebml.js');
+const { Decoder } = require('ebml.js');
 
 const ebmlDecoder = new Decoder();
 const counts = {};

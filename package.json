@@ -1,15 +1,23 @@
 {
-  "name": "web-ebml",
-  "version": "1.0.0",
-  "description": "",
+  "name": "ebml.js",
+  "version": "4.0.1",
+  "description": "ebml parser",
   "main": "src/index.js",
+  "maintainers": [
+    "Jonathan Sifuentes <jayands.dev@gmail.com>",
+    "Mark Schmale <masch@masch.it>"
+  ],
   "scripts": {
     "build": "webpack",
     "test": "jest"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "ebml",
+    "webm",
+    "mkv",
+    "matroska",
+    "format"
+  ],
   "devDependencies": {
     "buffer": "^6.0.3",
     "jest": "^30.4.2",
@@ -22,5 +30,27 @@
     "webpack": "^5.107.2",
     "webpack-cli": "^7.0.3",
     "webpack-merge": "^6.0.1"
+  },
+  "contributors": [
+    "Chris Price <price.c@gmail.com>",
+    "Davy Van Deursen <d.vandeursen@evs.com>",
+    "Ed Markowski <siphon@protonmail.com>",
+    "Jonathan Sifuentes <jayands.dev@gmail.com>",
+    "Manuel Wiedenmann <manuel@funkensturm.de>",
+    "Mathias Buus <mathiasbuus@gmail.com>",
+    "Max Ogden <max@maxogden.com>",
+    "Morgas <https://github.com/Morgas01>",
+    "Oliver Walzer <walzer@incuray.com>",
+    "greenkeeperio-bot <support@greenkeeper.io>"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/node-ebml/node-ebml/issues"
+  },
+  "homepage": "https://github.com/mutagen-d/node-ebml#readme",
+  "lint-staged": {
+    "*.js": "eslint --fix --no-ignore",
+    "*.json": "prettier --write",
+    "README.md": "prettier --write"
   }
 }
