@@ -37,7 +37,7 @@ const globalOpts = {
 
 export default defineConfig([
   {
-    input: './src/ebml/index.js',
+    input: './src/index.js',
     output: [
       {
         file: 'lib/ebml.js',
@@ -73,7 +73,7 @@ export default defineConfig([
     plugins,
   },
   {
-    input: './src/ebml/index.js',
+    input: './src/index.js',
     output: [
       {
         file: 'lib/ebml.min.js',
