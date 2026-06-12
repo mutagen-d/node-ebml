@@ -59,6 +59,7 @@ const createConfig = (minimize = false, env = 'web') => {
     },
     ...browserPolyfills,
   } : {
+    target: 'node',
     optimization,
     output: {
       filename: minimize ? '[name].min.node.js' : '[name].node.js',
