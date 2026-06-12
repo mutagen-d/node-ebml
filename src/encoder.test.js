@@ -1,7 +1,7 @@
-import assert from 'assert';
-import unexpected from 'unexpected';
-import unexpectedDate from 'unexpected-date';
-import Encoder from './encoder';
+const assert = require('assert');
+const unexpected = require('unexpected');
+const unexpectedDate = require('unexpected-date');
+const Encoder = require('./encoder');
 
 const expect = unexpected.clone().use(unexpectedDate);
 

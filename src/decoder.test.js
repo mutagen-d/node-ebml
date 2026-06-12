@@ -1,7 +1,7 @@
-import unexpected from 'unexpected';
-import unexpectedDate from 'unexpected-date';
+const unexpected = require('unexpected');
+const unexpectedDate = require('unexpected-date');
 
-import Decoder from './decoder';
+const Decoder = require('./decoder');
 
 const expect = unexpected.clone().use(unexpectedDate);
 

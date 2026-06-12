@@ -1,9 +1,9 @@
-import forEach from 'lodash.foreach';
-import range from 'lodash.range';
-import unexpected from 'unexpected';
-import unexpectedDate from 'unexpected-date';
+const forEach = require('lodash.foreach');
+const range = require('lodash.range');
+const unexpected = require('unexpected');
+const unexpectedDate = require('unexpected-date');
 
-import tools from './tools';
+const tools = require('./tools');
 
 const expect = unexpected.clone().use(unexpectedDate);
 
