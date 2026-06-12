@@ -1,8 +1,9 @@
 import { Transform } from 'stream';
 import tools from './tools';
 import schema from './schema';
+import { debugLog } from './debug-log';
 
-const debug = require('debug')('ebml:decoder');
+const debug = debugLog('ebml:decoder');
 
 const STATE_TAG = 1;
 const STATE_SIZE = 2;
@@ -117,15 +118,19 @@ export default class EbmlDecoder extends Transform {
     if (Number.isInteger(tag) && schema.has(tag)) {
       return schema.get(tag);
     }
-    return {
+    const tagStr = `0x${tag.toString(16).toUpperCase()}`
+    const unknown = {
       type: null,
-      name: 'unknown',
-      description: '',
+      name: `unknown-${tagStr}`,
+      description: `${tagStr}`,
       level: -1,
       minver: -1,
       multiple: false,
       webm: false,
     };
+    schema.set(tag, unknown)
+    console.warn('[SCHEMA]', 'unknown tag:', tagStr)
+    return unknown
   }
 
   readTag() {

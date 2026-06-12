@@ -1,3 +1,5 @@
+import schema from "./schema";
+
 export default class Tools {
   /**
    * read variable length integer per
@@ -258,5 +260,18 @@ export default class Tools {
       track,
       value,
     };
+  }
+
+  /**
+   * @param {Array<[number, import("./types/schema.types").EBMLSchema]>} items
+   */
+  static addSchema(items) {
+    if (!Array.isArray(items)) {
+      return schema
+    }
+    for (const item of items) {
+      schema.set(item[0], item[1])
+    }
+    return schema
   }
 }

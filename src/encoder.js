@@ -1,8 +1,9 @@
 import { Transform } from 'stream';
 import schema from './schema';
 import tools from './tools';
+import { debugLog } from './debug-log';
 
-const debug = require('debug')('ebml:encoder');
+const debug = debugLog('ebml:encoder');
 
 function encodeTag(tagId, tagData, end) {
   const data = [Buffer.from(tagId.toString(16), 'hex')];
