@@ -70,12 +70,20 @@ class EbmlDecoder extends Transform {
    */
   mTotal = 0;
 
+  /** @private */
+  mIsLive = false
+
   /**
    * @constructor
-   * @param {Object} options The options to be passed along to the super class
+   * @param {{ isLive?: boolean }} options The options to be passed along to the super class
    */
   constructor(options = {}) {
     super({ ...options, readableObjectMode: true });
+    this.mIsLive = options ? options.isLive : false
+  }
+
+  get isLive() {
+    return this.mIsLive;
   }
 
   get buffer() {
@@ -172,6 +180,10 @@ class EbmlDecoder extends Transform {
       return false;
     }
 
+    if (this.isLive && !this.findTagStart()) {
+      return false
+    }
+
     const start = this.total;
     const tag = tools.readVint(this.buffer, this.cursor);
 
@@ -210,6 +222,40 @@ class EbmlDecoder extends Transform {
     }
 
     return true;
+  }
+
+  /** @private */
+  findTagStart() {
+    while (this.cursor < this.buffer.length) {
+      try {
+        const tag = tools.readVint(this.buffer, this.cursor);
+        if (tag == null) {
+          return false
+        }
+        const tagStr = tools.readHexString(
+          this.buffer,
+          this.cursor,
+          this.cursor + tag.length,
+        );
+        const tagNum = Number.parseInt(tagStr, 16);
+        const tagName = EbmlDecoder.getSchemaInfo(tagNum).name
+        if (tagName && tagName.startsWith('unknown')) {
+          this.cursor += 1
+          continue
+        }
+        if (this.cursor > 0 && !this.total) {
+          this.buffer = this.buffer.subarray(this.cursor)
+          this.cursor = 0
+        }
+        return true
+      } catch (e) {
+        if (!e.message.startsWith('Unrepresentable length')) {
+          throw e
+        }
+        this.cursor += 1
+      }
+    }
+    return false
   }
 
   readSize() {
