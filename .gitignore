@@ -188,3 +188,4 @@ lib/
 /flow-typed/npm/
 # https://atom.io/packages/atomic-management
 .atom/*
+dist/
