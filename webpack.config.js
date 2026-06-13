@@ -63,6 +63,9 @@ const createConfig = (minimize = false, env = 'web') => {
     optimization,
     output: {
       filename: minimize ? '[name].min.node.js' : '[name].node.js',
+      library: {
+        type: 'commonjs2',
+      },
     }
   }
   return merge(baseConfig, opts)
