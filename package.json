@@ -8,6 +8,7 @@
     "Mark Schmale <masch@masch.it>"
   ],
   "scripts": {
+    "prepublishOnly": "npm run build",
     "build": "webpack",
     "test": "jest"
   },

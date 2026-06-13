@@ -3,7 +3,8 @@ const { merge } = require('webpack-merge')
 const webpack = require('webpack')
 const TerserPlugin = require('terser-webpack-plugin')
 
-const baseConfig = {
+const library = 'EBML'
+const base = {
   entry: {
     ebml: './src/index.js',
   },
@@ -18,62 +19,79 @@ const baseConfig = {
   devtool: 'source-map',
 }
 
-const browserPolyfills = {
+const full = {
   resolve: {
     alias: {
-      // This is often more reliable than fallback
       stream: "stream-browserify",
-      // buffer: "buffer/",
-      // process: "process/browser"
     },
     fallback: {
       "stream": require.resolve("stream-browserify"),
       "buffer": require.resolve("buffer/"),
-      // It's common to polyfill other modules like 'crypto', 'http', etc.
-      // "crypto": require.resolve("crypto-browserify"),
-      // "http": require.resolve("stream-http"),
     }
   },
   plugins: [
-    // The ProvidePlugin makes a module available as a variable in every module.
-    // This creates a global 'Buffer' variable that points to the 'Buffer' export from the 'buffer' package.
     new webpack.ProvidePlugin({
       Buffer: ['buffer', 'Buffer'],
-      // It's also common to provide a global 'process' object if other polyfills need it.
-      // process: 'process/browser',
     }),
   ],
 }
-
-const createConfig = (minimize = false, env = 'web') => {
-  const optimization = minimize ? {
-    minimize,
+const min = {
+  optimization: {
+    minimize: true,
     minimizer: [new TerserPlugin({ extractComments: false })],
-  } : { minimize }
-  const opts = env === 'web' ? {
-    optimization,
-    output: {
-      library: 'EBML',
-      libraryTarget: 'window',
-      filename: minimize ? '[name].min.js' : '[name].js',
+  },
+}
+const iife = {
+  output: {
+    library: {
+      name: library,
+      type: 'window',
     },
-    ...browserPolyfills,
-  } : {
-    target: 'node',
-    optimization,
-    output: {
-      filename: minimize ? '[name].min.node.js' : '[name].node.js',
-      library: {
-        type: 'commonjs2',
-      },
-    }
-  }
-  return merge(baseConfig, opts)
+    iife: true,
+  },
+}
+const nodejs = {
+  output: {
+    library: {
+      type: 'commonjs2',
+    },
+  },
+  target: 'node',
+}
+const umd = {
+  output: {
+    library: {
+      name: library,
+      type: 'umd',
+    },
+    globalObject: 'this',
+  },
 }
 
+const config = [
+  merge(base, full, iife, min, {
+    output: {
+      filename: '[name].iife.min.js',
+    },
+  }),
+  merge(base, full, iife, {
+    output: {
+      filename: '[name].iife.js',
+    },
+  }),
+  merge(base, full, umd, min, {
+    output: {
+      filename: '[name].umd.min.js',
+    },
+  }),
+  merge(base, full, umd, {
+    output: {
+      filename: '[name].umd.js',
+    },
+  }),
+]
+
+
 module.exports = [
-  createConfig(false),
-  createConfig(true),
-  createConfig(false, 'node'),
-  createConfig(true, 'node'),
+  ...config,
 ]
