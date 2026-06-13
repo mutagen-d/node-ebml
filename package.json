@@ -1,6 +1,6 @@
 {
   "name": "ebml.js",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "description": "ebml parser",
   "main": "src/index.js",
   "maintainers": [
