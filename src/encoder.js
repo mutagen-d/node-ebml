@@ -13,6 +13,9 @@ const debug = debugLog('ebml:encoder');
  * @param {number} [end]
  */
 function encodeTag(tagId, tagData, end) {
+  if (!tagId || !tagData.byteLength) {
+    return Buffer.alloc(0)
+  }
   const data = [Buffer.from(tagId.toString(16), 'hex')];
   if (end === -1) {
     data.push(Buffer.from([0xFF]))
