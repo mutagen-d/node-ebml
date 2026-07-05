@@ -5,116 +5,52 @@ const { debugLog } = require('./debug-log');
 
 const debug = debugLog('ebml:decoder');
 
-const STATE_TAG = 1;
-const STATE_SIZE = 2;
-const STATE_CONTENT = 3;
+const STATE = Object.freeze({
+  TAG: 1,
+  SIZE: 2,
+  CONTENT: 3,
+})
 
 class EbmlDecoder extends Transform {
-  /**
-   * @property
-   * @private
-   * @type {Buffer}
-   */
-  mBuffer = null;
-
-  /**
-   * @private
-   * @property
-   * @readonly
-   */
-  mTagStack = [];
-
-  /**
-   * @property
-   * @private
-   * @type {Number}
-   */
-  mState = STATE_TAG;
-
-  /**
-   * @property
-   * @private
-   * @type {Number}
-   */
-  mCursor = 0;
-
-  /**
-   * @property
-   * @private
-   * @type {Number}
-   */
-  mTotal = 0;
-
-  /** @private */
-  mIsLive = false
-
   /**
    * @constructor
    * @param {{ isLive?: boolean }} options The options to be passed along to the super class
    */
   constructor(options = {}) {
     super({ ...options, readableObjectMode: true });
-    this.mIsLive = options ? options.isLive : false
-  }
+    /**
+     * @protected
+     * @type {undefined|Buffer}
+     */
+    this.buffer
 
-  get isLive() {
-    return this.mIsLive;
-  }
+    /**
+     * @protected
+     * @type {import('./schema').EBMLHead[]>}
+     */
+    this.stack = []
 
-  get buffer() {
-    return this.mBuffer;
-  }
-
-  get cursor() {
-    return this.mCursor;
-  }
-
-  get state() {
-    return this.mState;
-  }
-
-  get tagStack() {
-    return this.mTagStack;
-  }
-
-  get total() {
-    return this.mTotal;
-  }
-
-  set buffer(buffer) {
-    this.mBuffer = buffer;
-  }
-
-  /**
-   * @param {number} cursor
-   */
-  set cursor(cursor) {
-    this.mCursor = cursor;
-  }
-
-  set state(state) {
-    this.mState = state;
-  }
-
-  set total(total) {
-    this.mTotal = total;
+    /** @protected */
+    this.cursor = 0
+    /** @protected */
+    this.total = 0
+    /** @protected */
+    this.state = STATE.TAG
   }
 
   _transform(chunk, enc, done) {
-    if (!this.buffer) {
-      this.buffer = Buffer.from(chunk);
-    } else {
-      this.buffer = tools.concatenate(this.buffer, Buffer.from(chunk));
-    }
+    this.buffer = this.buffer
+      ? tools.concat(this.buffer, Buffer.from(chunk))
+      : Buffer.from(chunk)
 
     while (this.cursor < this.buffer.length) {
-      if (this.state === STATE_TAG && !this.readTag()) {
+      if (this.state === STATE.TAG && !this.readTag()) {
         break;
       }
-      if (this.state === STATE_SIZE && !this.readSize()) {
+      if (this.state === STATE.SIZE && !this.readSize()) {
         break;
       }
-      if (this.state === STATE_CONTENT && !this.readContent()) {
+      if (this.state === STATE.CONTENT && !this.readContent()) {
         break;
       }
     }
@@ -122,48 +58,44 @@ class EbmlDecoder extends Transform {
     done();
   }
 
-  static getSchemaInfo(tag) {
-    if (Number.isInteger(tag) && schema.has(tag)) {
-      return schema.get(tag);
+  /**
+   * @param {number} id
+   */
+  static getSchemaInfo(id) {
+    if (Number.isInteger(id) && schema.has(id)) {
+      return schema.get(id);
     }
-    const tagStr = `0x${tag.toString(16).toUpperCase()}`
+    const hex = `0x${id.toString(16).toUpperCase()}`
     const unknown = {
       type: null,
-      name: `unknown-${tagStr}`,
-      description: `${tagStr}`,
+      name: `unknown-${hex}`,
+      description: `${hex}`,
       level: -1,
       minver: -1,
       multiple: false,
       webm: false,
     };
-    schema.set(tag, unknown)
-    console.warn('[SCHEMA]', 'unknown tag:', tagStr)
+    schema.set(id, unknown)
+    console.warn('[SCHEMA]', 'unknown tag:', hex)
     return unknown
   }
 
   readTag() {
-    /* istanbul ignore if */
     if (debug.enabled) {
       debug('parsing tag');
     }
 
     if (this.cursor >= this.buffer.length) {
-      /* istanbul ignore if */
       if (debug.enabled) {
         debug('waiting for more data');
       }
       return false;
-    }
-
-    if (this.isLive && !this.findTagStart()) {
-      return false
     }
 
     const start = this.total;
     const tag = tools.readVint(this.buffer, this.cursor);
 
     if (tag == null) {
-      /* istanbul ignore if */
       if (debug.enabled) {
         debug('waiting for more data');
       }
@@ -171,78 +103,39 @@ class EbmlDecoder extends Transform {
       return false;
     }
 
-    const tagStr = tools.readHexString(
-      this.buffer,
-      this.cursor,
-      this.cursor + tag.length,
-    );
-    const tagNum = Number.parseInt(tagStr, 16);
+    const tagNum = this.buffer.readUintBE(this.cursor, tag.length)
     this.cursor += tag.length;
     this.total += tag.length;
-    this.state = STATE_SIZE;
+    this.state = STATE.SIZE;
 
-    const tagObj = {
-      tag: tag.value,
-      tagStr,
-      type: EbmlDecoder.getSchemaInfo(tagNum).type,
-      name: EbmlDecoder.getSchemaInfo(tagNum).name,
-      start,
-      end: start + tag.length,
-    };
+    const info = EbmlDecoder.getSchemaInfo(tagNum)
+    /** @type {import('./schema').EBMLTag['head']} */
+    const head = {
+      id: tagNum,
+      size: undefined,
+      name: info.name,
+      type: info.type,
+      level: info.level,
+      _start: start,
+      _end: start + tag.length,
+    }
 
-    this.tagStack.push(tagObj);
-    /* istanbul ignore if */
+    this.stack.push(head);
     if (debug.enabled) {
-      debug(`read tag: ${tagStr}`);
+      debug(`read tag: ${head.name}`);
     }
 
     return true;
   }
 
-  /** @private */
-  findTagStart() {
-    while (this.cursor < this.buffer.length) {
-      try {
-        const tag = tools.readVint(this.buffer, this.cursor);
-        if (tag == null) {
-          return false
-        }
-        const tagStr = tools.readHexString(
-          this.buffer,
-          this.cursor,
-          this.cursor + tag.length,
-        );
-        const tagNum = Number.parseInt(tagStr, 16);
-        const tagName = EbmlDecoder.getSchemaInfo(tagNum).name
-        if (tagName && tagName.startsWith('unknown')) {
-          this.cursor += 1
-          continue
-        }
-        if (this.cursor > 0 && !this.total) {
-          this.buffer = this.buffer.subarray(this.cursor)
-          this.cursor = 0
-        }
-        return true
-      } catch (e) {
-        if (!e.message.startsWith('Unrepresentable length')) {
-          throw e
-        }
-        this.cursor += 1
-      }
-    }
-    return false
-  }
-
   readSize() {
-    const tagObj = this.tagStack[this.tagStack.length - 1];
+    const head = this.stack[this.stack.length - 1];
 
-    /* istanbul ignore if */
     if (debug.enabled) {
-      debug(`parsing size for tag: ${tagObj.tagStr}`);
+      debug(`parsing size for tag: ${head.name}`);
     }
 
     if (this.cursor >= this.buffer.length) {
-      /* istanbul ignore if */
       if (debug.enabled) {
         debug('waiting for more data');
       }
@@ -253,7 +146,6 @@ class EbmlDecoder extends Transform {
     const size = tools.readVint(this.buffer, this.cursor);
 
     if (size == null) {
-      /* istanbul ignore if */
       if (debug.enabled) {
         debug('waiting for more data');
       }
@@ -263,81 +155,72 @@ class EbmlDecoder extends Transform {
 
     this.cursor += size.length;
     this.total += size.length;
-    this.state = STATE_CONTENT;
-    tagObj.dataSize = size.value;
-
-    // unknown size
+    this.state = STATE.CONTENT;
+    head.size = size.value;
     if (size.value === -1) {
-      tagObj.end = -1;
+      head._end = -1;
     } else {
-      tagObj.end += size.value + size.length;
+      head._end += size.value + size.length;
     }
-    /* istanbul ignore if */
     if (debug.enabled) {
-      debug(`read size: ${size.value}`);
+      debug(`read size(${head.name}): ${size.value}`);
     }
 
     return true;
   }
 
   readContent() {
-    const { tagStr, type, dataSize, ...rest } = this.tagStack[this.tagStack.length - 1];
+    const head = this.stack[this.stack.length - 1];
 
-    /* istanbul ignore if */
     if (debug.enabled) {
-      debug(`parsing content for tag: ${tagStr}`);
+      debug(`parsing content for tag: ${head.name}`);
     }
 
-    if (type === 'm') {
-      /* istanbul ignore if */
+    if (head.type === 'm') {
       if (debug.enabled) {
         debug('content should be tags');
       }
-      this.push(['start', { tagStr, type, dataSize, ...rest }]);
-      this.state = STATE_TAG;
+      this.push(['start', { head }])
+      if (head.size === 0 || head.size === -1) {
+        this.stack.pop()
+        this.push(['end', { head }])
+      }
+      this.state = STATE.TAG;
 
       return true;
     }
 
-    if (this.buffer.length < this.cursor + dataSize) {
-      /* istanbul ignore if */
+    if (this.buffer.length < this.cursor + head.size) {
       if (debug.enabled) {
         debug(`got: ${this.buffer.length}`);
-        debug(`need: ${this.cursor + dataSize}`);
+        debug(`need: ${this.cursor + head.size}`);
         debug('waiting for more data');
       }
 
       return false;
     }
 
-    const data = this.buffer.subarray(this.cursor, this.cursor + dataSize);
-    this.total += dataSize;
-    this.state = STATE_TAG;
-    this.buffer = this.buffer.subarray(this.cursor + dataSize);
+    const data = this.buffer.subarray(this.cursor, this.cursor + head.size);
+    this.total += head.size;
+
+    this.state = STATE.TAG;
+    this.buffer = this.buffer.subarray(this.cursor + head.size);
     this.cursor = 0;
 
-    this.tagStack.pop(); // remove the object from the stack
+    this.stack.pop();
+    this.push(['tag', tools.readBody(head, Buffer.from(data))]);
 
-    this.push([
-      'tag',
-      tools.readDataFromTag(
-        { tagStr, type, dataSize, ...rest },
-        Buffer.from(data),
-      ),
-    ]);
-
-    while (this.tagStack.length > 0) {
-      const topEle = this.tagStack[this.tagStack.length - 1];
-      if (this.total < topEle.end) {
+    while (this.stack.length > 0) {
+      const head = this.stack[this.stack.length - 1];
+      if (this.total < head._end) {
         break;
       }
-      this.push(['end', topEle]);
-      this.tagStack.pop();
+      this.stack.pop();
+      this.push(['end', { head }]);
     }
 
-    /* istanbul ignore if */
     if (debug.enabled) {
-      debug(`read data: ${data.toString('hex')}`);
+      debug(`read data: ${data.toString('hex').slice(0, 100)}`);
     }
 
     return true;

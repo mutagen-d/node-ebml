@@ -1,6 +1,6 @@
 const schema = require("./schema");
 
-class Tools {
+class tools {
   /**
    * read variable length integer per
    * https://www.matroska.org/technical/specs/index.html#EBML_ex
@@ -22,7 +22,7 @@ class Tools {
     }
 
     if (length > 8) {
-      const number = Tools.readHexString(buffer, start, start + length);
+      const number = tools.readHexString(buffer, start, start + length);
       throw new Error(`Unrepresentable length: ${length} ${number}`);
     }
 
@@ -47,12 +47,18 @@ class Tools {
       return { length, value: -1 };
     }
 
-    // Parse the remaining bytes
+    // Parse the remaining bytes into a BigInt to detect values > 2^53
+    let bigValue = BigInt(value);
     for (let i = 1; i < length; i++) {
-      value = (value << 8) | buffer[start + i];
+      bigValue = bigValue * 256n + BigInt(buffer[start + i]);
     }
 
-    return { length, value };
+    // If the value is greater than 2^53, return -1 to indicate unrepresentable
+    if (bigValue > (2n ** 53n)) {
+      return { length, value: -1 };
+    }
+
+    return { length, value: Number(bigValue) };
   }
 
   /**
@@ -62,6 +68,9 @@ class Tools {
    * @returns {Buffer} containing the value
    */
   static writeVint(value, minLength = 1) {
+    if (value === -1) {
+      return Buffer.from([0xFF])
+    }
     if (value < 0 || value > 2 ** 53) {
       throw new Error(`Unrepresentable value: ${value}`);
     }
@@ -96,7 +105,7 @@ class Tools {
    * @param {Buffer} a2  Second array
    * @returns  {Buffer} concatenated arrays
    */
-  static concatenate(a1, a2) {
+  static concat(a1, a2) {
     // both null or undefined
     if (!a1 && !a2) {
       return Buffer.from([]);
@@ -158,7 +167,7 @@ class Tools {
       return buff.reduce((acc, current) => acc * 256 + current, 0);
     }
 
-    return Tools.readHexString(buff, 0, buff.byteLength);
+    return tools.readHexString(buff, 0, buff.byteLength);
   }
 
   /**
@@ -215,7 +224,7 @@ class Tools {
       case 4:
         return new Date(b.getUint32(0));
       case 8:
-        return new Date(Number.parseInt(Tools.readHexString(buff), 16));
+        return new Date(Number.parseInt(tools.readHexString(buff), 16));
       default:
         return new Date(0);
     }
@@ -224,64 +233,65 @@ class Tools {
   /**
    * Reads the data from a tag
    * @static
-   * @param  {TagData} tagObj The tag object to be read
+   * @param  {import("./schema").EBMLHead} head The tag object to be read
    * @param  {Buffer} data Data to be transformed
-   * @return {Tag} result
+   * @return {import("./schema").EBMLTag} result
    */
-  static readDataFromTag(tagObj, data) {
-    const { type, name } = tagObj;
-    let { track } = tagObj;
-    let discardable = tagObj.discardable || false;
-    let keyframe = tagObj.keyframe || false;
-    let payload = null;
-    let value;
+  static readBody(head, data) {
+    const { type, name } = head;
+    /** @type {import("./schema").EBMLTag['body']} */
+    const body = { buffer: data }
 
     switch (type) {
       case 'u':
-        value = Tools.readUnsigned(data);
+        body.value = tools.readUnsigned(data);
         break;
       case 'f':
-        value = Tools.readFloat(data);
+        body.value = tools.readFloat(data);
         break;
       case 'i':
-        value = Tools.readSigned(data);
+        body.value = tools.readSigned(data);
         break;
       case 's':
-        value = String.fromCharCode(...data);
+        body.value = String.fromCharCode(...data);
         break;
       case '8':
-        value = Tools.readUtf8(data);
+        body.value = tools.readUtf8(data);
         break;
       case 'd':
-        value = Tools.readDate(data);
+        body.value = tools.readDate(data);
         break;
+      case 'b':
       default:
         break;
     }
 
     if (name === 'SimpleBlock' || name === 'Block') {
-      let p = 0;
-      const { length, value: trak } = Tools.readVint(data, p);
-      p += length;
-      track = trak;
-      value = Tools.readSigned(data.subarray(p, p + 2));
-      p += 2;
-      if (name === 'SimpleBlock') {
-        keyframe = Boolean(data[length + 2] & 0x80);
-        discardable = Boolean(data[length + 2] & 0x01);
+      let offset = 0;
+      {
+        const track = tools.readVint(data, offset);
+        offset += track.length;
+        body.track = track.value
       }
-      p += 1;
-      payload = data.subarray(p);
+      {
+        const timecode = tools.readSigned(data.subarray(offset, offset + 2));
+        offset += 2;
+        body.timecode = timecode
+        body.value = timecode
+      }
+      if (name === 'SimpleBlock') {
+        body.keyframe = Boolean(data[offset] & 0x80);
+      }
+      offset += 1;
+      body.frame = data.subarray(offset);
+    }
+    if (name === 'Timecode') {
+      body.timecode = body.value
     }
 
     return {
-      ...tagObj,
-      data,
-      discardable,
-      keyframe,
-      payload,
-      track,
-      value,
+      head,
+      body,
     };
   }
 
@@ -352,4 +362,4 @@ class Tools {
   };
 }
 
-module.exports = Tools
+module.exports = tools

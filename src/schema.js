@@ -1,5 +1,39 @@
+
+/**
+ * @typedef {{
+ *  name: string,
+ *  type: 'm' | 'u' | 'i' | 'f' | 's' | '8' | 'd' | 'b' | null,
+ *  level: number,
+ * }} EBMLSchema
+*/
+
+/**
+ * @typedef {EBMLSchema & {
+ *  id: number;
+ *  size: number;
+ * }} EBMLHead
+ */
+
+/**
+ * @typedef {{
+ *  head: EBMLHead
+ *  body: {
+ *    buffer?: Buffer
+ *    value?: number | string
+ *    track?: number
+ *    keyframe?: boolean
+ *    timecode?: number
+ *    frame?: Buffer
+ *  }
+ *  buffer?: Buffer
+ * }} EBMLTag
+ */
+
+/** @typedef {Omit<EBMLTag, 'body'> & { children?: EBMLTagItem[] }} EBMLTagItem */
+
 /**
  * @see https://www.matroska.org/technical/elements.html#EBML_ex
+ * @type {Map<number, EBMLSchema>}
  */
 const schema = new Map([
   [

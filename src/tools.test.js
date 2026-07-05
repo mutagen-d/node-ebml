@@ -17,7 +17,8 @@ describe('EBML', () => {
       }
 
       it('should read the correct value for all 1 byte integers', () => {
-        forEach(range(0x80), i => readVint(Buffer.from([i | 0x80]), i));
+        // exclude the reserved "all-bits-set" value (0x7f) which denotes unknown
+        forEach(range(0, 0x80 - 1), i => readVint(Buffer.from([i | 0x80]), i));
       });
       it('should read the correct value for 1 byte int with non-zero start', () => {
         const b = Buffer.from([0x00, 0x81]);
@@ -44,17 +45,20 @@ describe('EBML', () => {
       // not brute forcing any more bytes, takes sooo long
       it('should read the correct value for 4 byte int min/max values', () => {
         readVint(Buffer.from([0x10, 0x20, 0x00, 0x00]), 2 ** 21);
-        readVint(Buffer.from([0x1f, 0xff, 0xff, 0xff]), 2 ** 28 - 1);
+        // all-bits-set denotes unknown/unspecified size -> -1
+        readVint(Buffer.from([0x1f, 0xff, 0xff, 0xff]), -1);
       });
       it('should read the correct value for 5 byte int min/max values', () => {
         readVint(Buffer.from([0x08, 0x10, 0x00, 0x00, 0x00]), 2 ** 28);
-        readVint(Buffer.from([0x0f, 0xff, 0xff, 0xff, 0xff]), 2 ** 35 - 1);
+        // all-bits-set denotes unknown/unspecified size -> -1
+        readVint(Buffer.from([0x0f, 0xff, 0xff, 0xff, 0xff]), -1);
       });
       it('should read the correct value for 6 byte int min/max values', () => {
         readVint(Buffer.from([0x04, 0x08, 0x00, 0x00, 0x00, 0x00]), 2 ** 35);
+        // all-bits-set denotes unknown/unspecified size -> -1
         readVint(
           Buffer.from([0x07, 0xff, 0xff, 0xff, 0xff, 0xff]),
-          2 ** 42 - 1,
+          -1,
         );
       });
       it('should read the correct value for 7 byte int min/max values', () => {
@@ -62,9 +66,10 @@ describe('EBML', () => {
           Buffer.from([0x02, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00]),
           2 ** 42,
         );
+        // all-bits-set denotes unknown/unspecified size -> -1
         readVint(
           Buffer.from([0x03, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]),
-          2 ** 49 - 1,
+          -1,
         );
       });
       it('should read the correct value for 8 byte int min value', () => {
@@ -636,7 +641,7 @@ describe('EBML', () => {
         expect(tools.readSigned(Buffer.from([0x40, 0x20, 0x00])), 'to be NaN');
       });
     });
-    describe('#readDataFromTag', () => {
+    describe('#readBody', () => {
       it('can read a string from a tag', () => {
         const tagData = { type: 's', name: 'DocType' };
         const buf = Buffer.from([
@@ -649,7 +654,7 @@ describe('EBML', () => {
           0x6b,
           0x61,
         ]);
-        expect(tools.readDataFromTag(tagData, buf), 'to satisfy', {
+        expect(tools.readBody(tagData, buf), 'to satisfy', {
           type: 's',
           name: 'DocType',
           data: expect
@@ -667,7 +672,7 @@ describe('EBML', () => {
           name: 'TrackType',
         };
         const buf = Buffer.from([0x77]);
-        expect(tools.readDataFromTag(tagData, buf), 'to satisfy', {
+        expect(tools.readBody(tagData, buf), 'to satisfy', {
           type: 'u',
           name: 'TrackType',
           data: expect
@@ -682,7 +687,7 @@ describe('EBML', () => {
           name: 'TrackOffset',
         };
         const buf = Buffer.from([0xa7]);
-        expect(tools.readDataFromTag(tagData, buf), 'to satisfy', {
+        expect(tools.readBody(tagData, buf), 'to satisfy', {
           type: 'i',
           name: 'TrackOffset',
           data: expect
@@ -697,7 +702,7 @@ describe('EBML', () => {
           name: 'Duration',
         };
         const buf = Buffer.from([0x40, 0x00, 0x00, 0x77]);
-        expect(tools.readDataFromTag(tagData, buf), 'to satisfy', {
+        expect(tools.readBody(tagData, buf), 'to satisfy', {
           type: 'f',
           name: 'Duration',
           data: expect

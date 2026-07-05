@@ -5,106 +5,65 @@ const { debugLog } = require('./debug-log');
 
 const debug = debugLog('ebml:encoder');
 
-/** @typedef {import('./types/tag.types').Tag} Tag */
+/** @typedef {import('./schema').EBMLTag} Tag */
 
 /**
- * @param {number} tagId
- * @param {Buffer} tagData
- * @param {number} [end]
+ * @param {import('./schema').EBMLHead} head
+ * @param {Buffer} buffer
  */
-function encodeTag(tagId, tagData, end) {
-  if (!tagId || !tagData.byteLength) {
+function encodeTag(head, buffer) {
+  if (!head) {
     return Buffer.alloc(0)
   }
-  const data = [Buffer.from(tagId.toString(16), 'hex')];
-  if (end === -1) {
-    data.push(Buffer.from([0xFF]))
-  } else {
-    data.push(tools.writeVint(tagData.length))
-  }
-
+  const id = Buffer.from(head.id.toString(16), 'hex');
+  const size = head.size === -1
+    ? Buffer.from([0xFF])
+    : tools.writeVint(buffer.byteLength);
   // cast ArrayBuffer to Buffer
-  if (!Buffer.isBuffer(tagData)) {
-    tagData = Buffer.from(tagData); // eslint-disable-line no-param-reassign
+  if (!Buffer.isBuffer(buffer)) {
+    buffer = Buffer.from(buffer);
   }
-  data.push(tagData);
-  return Buffer.concat(data);
+  return Buffer.concat([id, size, buffer]);
 }
 
 /**
  * Encodes a raw EBML stream
- * @class EbmlEncoder
- * @extends Transform
  */
 class EbmlEncoder extends Transform {
-  /**
-   * @type {Buffer}
-   * @property
-   * @private
-   */
-  mBuffer = null;
-
-  /**
-   * @private
-   * @property
-   * @type {Boolean}
-   */
-  mCorked = false;
-
-  /**
-   * @private
-   * @property
-   * @type {Array<Tag>}
-   */
-  mStack = [];
-
   constructor(options = {}) {
     super({ ...options, writableObjectMode: true });
-  }
-
-  get buffer() {
-    return this.mBuffer;
-  }
-
-  get corked() {
-    return this.mCorked;
-  }
-
-  get stack() {
-    return this.mStack;
-  }
-
-  set buffer(buffer) {
-    this.mBuffer = buffer;
-  }
-
-  set corked(corked) {
-    this.mCorked = corked;
-  }
-
-  set stack(stak) {
-    this.mStack = stak;
+    /**
+     * @private
+     * @type {Buffer}
+     */
+    this.buffer
+    /**
+     * @private
+     * @type {import('./schema').EBMLTagItem[]}
+     */
+    this.stack = []
+    /** @private */
+    this.corked = false
   }
 
   /**
    *
-   * @param {[string, Tag]} chunk array of chunk data, starting with the tag
+   * @param {[string, import('./schema').EBMLTag]} chunk array of chunk data, starting with the tag
    * @param {string} enc the encoding type (not used)
-   * @param {Function} done a callback method to call after the transformation
+   * @param {() => any} done a callback method to call after the transformation
    */
   _transform(chunk, enc, done) {
-    const [tag, { data, name, ...rest }] = chunk;
-    /* istanbul ignore if */
+    const [action, tag] = chunk;
     if (debug.enabled) {
-      debug(`encode ${tag} ${name}`);
+      debug(`encode ${action} ${tag.head.name}`);
     }
 
-    switch (tag) {
+    switch (action) {
       case 'start':
-        this.startTag(name, { ...rest });
+        this.startTag(tag);
         break;
       case 'tag':
-        this.writeTag(name, data);
+        this.writeTag(tag);
         break;
       case 'end':
         this.endTag();
@@ -122,7 +81,6 @@ class EbmlEncoder extends Transform {
    */
   flush(done = () => {}) {
     if (!this.buffer || this.corked) {
-      /* istanbul ignore if */
       if (debug.enabled) {
         debug('no buffer/nothing pending');
       }
@@ -130,14 +88,12 @@ class EbmlEncoder extends Transform {
     }
 
     if (this.buffer.byteLength === 0) {
-      /* istanbul ignore if */
       if (debug.enabled) {
         debug('empty buffer');
       }
       return done();
     }
 
-    /* istanbul ignore if */
     if (debug.enabled) {
       debug(`writing ${this.buffer.length} bytes`);
     }
@@ -153,7 +109,7 @@ class EbmlEncoder extends Transform {
    * @param {Buffer | Buffer[]} buffer
    */
   bufferAndFlush(buffer) {
-    this.buffer = tools.concatenate(this.buffer, buffer);
+    this.buffer = tools.concat(this.buffer, buffer);
     this.flush();
   }
 
@@ -171,7 +127,7 @@ class EbmlEncoder extends Transform {
    * @param  {string} tagName to be looked up
    * @return {number}         A buffer containing the schema information
    */
-  static getSchemaInfo(tagName) {
+  static getSchemaID(tagName) {
     const tagId = Array.from(schema.keys()).find(
       str => schema.get(str).name === tagName,
     );
@@ -191,16 +147,19 @@ class EbmlEncoder extends Transform {
     this.flush();
   }
 
-  /** @private */
-  writeTag(tagName, tagData) {
-    const tagId = EbmlEncoder.getSchemaInfo(tagName);
+  /** 
+   * @private
+   * @param {import('./schema').EBMLTag} tag
+   */
+  writeTag(tag) {
+    const tagId = tag.head.id;
     if (!tagId) {
-      throw new Error(`No schema entry found for ${tagName}`);
+      throw new Error(`No schema entry found for ${tag.head.name}`);
     }
-    if (tagData) {
-      const data = encodeTag(tagId, tagData);
+    if (tag.body.buffer) {
+      const data = encodeTag(tag.head, tag.body.buffer);
       if (this.stack.length > 0) {
-        this.stack[this.stack.length - 1].children.push({ data });
+        this.stack[this.stack.length - 1].children.push({ buffer: data });
       } else {
         this.bufferAndFlush(data);
       }
@@ -209,39 +168,36 @@ class EbmlEncoder extends Transform {
 
   /**
    * @private
-   * @param {String} tagName The name of the tag to start
-   * @param {{end: Number}} info an information object with a `end` parameter
+   * @param {import('./schema').EBMLTag} tag
    */
-  startTag(tagName, { end }) {
-    const tagId = EbmlEncoder.getSchemaInfo(tagName);
-    if (!tagId) {
-      throw new Error(`No schema entry found for ${tagName}`);
+  startTag(tag) {
+    if (!tag.head.id) {
+      throw new Error(`No schema entry found for ${tag.head.name}`);
     }
 
-    const tag = {
-      data: null,
-      id: tagId,
-      name: tagName,
-      end,
+    /** @type {import('./schema').EBMLTagItem} */
+    const tagItem = {
+      head: tag.head,
+      buffer: Buffer.alloc(0),
       children: [],
     };
 
     if (this.stack.length > 0) {
-      this.stack[this.stack.length - 1].children.push(tag);
+      this.stack[this.stack.length - 1].children.push(tagItem);
     }
-    this.stack.push(tag);
+    this.stack.push(tagItem);
   }
 
   /** @private */
   endTag() {
-    const tag = this.stack.pop() || {
-      children: [],
-      data: { buffer: Buffer.from([]) },
-    };
-    const childTagDataBuffers = tag.children.map(child => child.data);
-    tag.data = encodeTag(tag.id, Buffer.concat(childTagDataBuffers), tag.end);
-    if (this.stack.length < 1) {
-      this.bufferAndFlush(tag.data);
+    const tag = this.stack.pop();
+    if (!tag) {
+      return;
+    }
+    const childBuffers = tag.children.map(child => child.buffer);
+    tag.buffer = encodeTag(tag.head, Buffer.concat(childBuffers))
+    if (!this.stack.length) {
+      this.bufferAndFlush(tag.buffer);
     }
   }
 }
